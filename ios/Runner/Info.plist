@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Tapcare</string>
+	<string>TapCare</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -13,7 +13,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>tapcare</string>
+	<string>TapCare</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -28,22 +28,60 @@
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
+	
+	<!-- Lock to portrait orientation for emergency app -->
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	
+	<!-- Location permissions for emergency alerts -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>TapCare needs location access to send emergency alerts with your precise location to help responders find you quickly.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>TapCare needs location access for emergency services to ensure accurate location reporting during emergencies.</string>
+	
+	<!-- Camera permissions for potential future features -->
+	<key>NSCameraUsageDescription</key>
+	<string>TapCare may use camera to capture emergency situation details (optional feature).</string>
+	
+	<!-- Microphone permissions for emergency calls -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>TapCare needs microphone access for emergency communication features.</string>
+	
+	<!-- Internet access for emergency alerts -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+	
+	<!-- Background processing for emergency features -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>background-processing</string>
+	</array>
+	
+	<!-- Emergency app category -->
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.medical</string>
+	
+	<!-- Performance optimizations -->
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	
+	<!-- Status bar configuration -->
+	<key>UIStatusBarStyle</key>
+	<string>UIStatusBarStyleDefault</string>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<false/>
 </dict>
 </plist>

@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TapCare Dashboard</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+        .header { background: #dc3545; color: white; padding: 20px; text-align: center; margin-bottom: 20px; }
+        .controls { background: white; padding: 15px; margin-bottom: 20px; border-radius: 8px; display: flex; gap: 10px; align-items: center; }
+        .btn { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .btn-red { background: #dc3545; color: white; }
+        .btn-green { background: #28a745; color: white; }
+        .status { padding: 8px 12px; border-radius: 5px; font-size: 14px; margin-left: auto; }
+        .status.ok { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .section { background: white; padding: 20px; border-radius: 8px; }
+        #map { height: 400px; }
+        .alert { border: 2px solid #dc3545; border-radius: 8px; padding: 15px; margin: 10px 0; cursor: pointer; transition: all 0.2s; }
+        .alert:hover { background: #f8f9fa; }
+        .alert-title { font-weight: bold; color: #dc3545; margin-bottom: 8px; }
+        .alert-details { font-size: 14px; color: #666; line-height: 1.5; }
+        @media (max-width: 768px) { .container { grid-template-columns: 1fr; } }
+        .heartbeat { animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚨 TapCare Emergency Dashboard</h1>
+        <p>Manual refresh dashboard - Stable mode</p>
+    </div>
+    
+    <div class="controls">
+        <button class="btn btn-red" onclick="manualRefresh()">🔄 Refresh Now</button>
+        <button class="btn btn-green" onclick="testSound()">🔊 Test Sound</button>
+        <label style="display: flex; align-items: center; gap: 5px;">
+            <input type="checkbox" id="autoRefresh" onchange="toggleAutoRefresh()"> Auto-refresh
+        </label>
+        <div id="status" class="status ok">Ready</div>
+    </div>
+    
+    <div class="container">
+        <div class="section">
+            <h3>📍 Emergency Locations</h3>
+            <div id="map"></div>
+        </div>
+        
+        <div class="section">
+            <h3>📋 Database Alerts</h3>
+            <div id="alerts">Click "Refresh Now" to load alerts from database</div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        let map, markers = [], audio, refreshInterval = null;
+        let isRefreshing = false;
+        
+        function init() {
+            console.log('🚨 TapCare Dashboard Starting...');
+            
+            // Audio setup
+            try { 
+                audio = new AudioContext(); 
+                console.log('🔊 Audio ready');
+            } catch(e) { 
+                console.log('🔇 No audio available'); 
+            }
+            
+            // Map setup
+            map = L.map('map').setView([37.4220, -122.0840], 12);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            
+            updateStatus('Dashboard ready - Click refresh to load alerts', 'ok');
+            console.log('✅ Dashboard initialized');
+        }
+        
+        function updateStatus(message, type = 'ok') {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+        }
+        
+        function testSound() {
+            if (!audio) {
+                updateStatus('Audio not available', 'error');
+                return;
+            }
+            
+            try {
+                if (audio.state === 'suspended') audio.resume();
+                
+                const osc = audio.createOscillator();
+                const gain = audio.createGain();
+                osc.connect(gain);
+                gain.connect(audio.destination);
+                
+                osc.frequency.setValueAtTime(800, audio.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1200, audio.currentTime + 0.5);
+                osc.frequency.exponentialRampToValueAtTime(800, audio.currentTime + 1);
+                
+                gain.gain.setValueAtTime(0.3, audio.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audio.currentTime + 1);
+                
+                osc.start();
+                osc.stop(audio.currentTime + 1);
+                
+                updateStatus('🔊 Test sound played', 'ok');
+                console.log('🚨 Sound test completed');
+            } catch(e) { 
+                updateStatus('Sound error: ' + e.message, 'error');
+            }
+        }
+        
+        function toggleAutoRefresh() {
+            const checkbox = document.getElementById('autoRefresh');
+            
+            if (checkbox.checked) {
+                refreshInterval = setInterval(manualRefresh, 15000); // Every 15 seconds
+                updateStatus('Auto-refresh enabled (15s)', 'ok');
+            } else {
+                if (refreshInterval) {
+                    clearInterval(refreshInterval);
+                    refreshInterval = null;
+                }
+                updateStatus('Auto-refresh disabled', 'ok');
+            }
+        }
+        
+        async function manualRefresh() {
+            if (isRefreshing) {
+                updateStatus('Already refreshing...', 'error');
+                return;
+            }
+            
+            isRefreshing = true;
+            updateStatus('Loading from database...', 'ok');
+            
+            try {
+                // Create a temporary iframe to load the API data
+                const iframe = document.createElement('iframe');
+                iframe.style.display = 'none';
+                document.body.appendChild(iframe);
+                
+                // Set up a timeout
+                const timeout = setTimeout(() => {
+                    document.body.removeChild(iframe);
+                    throw new Error('Request timeout');
+                }, 10000);
+                
+                iframe.onload = function() {
+                    try {
+                        clearTimeout(timeout);
+                        const response = iframe.contentDocument.body.textContent;
+                        const data = JSON.parse(response);
+                        document.body.removeChild(iframe);
+                        displayAlerts(data);
+                    } catch(e) {
+                        document.body.removeChild(iframe);
+                        updateStatus('Parse error: ' + e.message, 'error');
+                    }
+                    isRefreshing = false;
+                };
+                
+                iframe.onerror = function() {
+                    clearTimeout(timeout);
+                    document.body.removeChild(iframe);
+                    updateStatus('Network error - Check server', 'error');
+                    isRefreshing = false;
+                };
+                
+                iframe.src = '/api/alerts';
+                
+            } catch(e) {
+                updateStatus('Error: ' + e.message, 'error');
+                isRefreshing = false;
+            }
+        }
+        
+        function displayAlerts(data) {
+            if (!data || !data.success) {
+                updateStatus('Database error: ' + (data?.message || 'Unknown'), 'error');
+                return;
+            }
+            
+            const alerts = data.alerts || [];
+            const timestamp = new Date().toLocaleTimeString();
+            
+            updateStatus(`✅ ${alerts.length} alerts loaded - ${timestamp}`, 'ok');
+            
+            // Display alerts list
+            const alertsDiv = document.getElementById('alerts');
+            
+            if (alerts.length === 0) {
+                alertsDiv.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: #666;">
+                        <div style="font-size: 48px; margin-bottom: 15px;">✅</div>
+                        <div>No emergency alerts in database</div>
+                        <div style="font-size: 12px; margin-top: 8px;">Last checked: ${timestamp}</div>
+                    </div>
+                `;
+            } else {
+                alertsDiv.innerHTML = alerts.map(alert => `
+                    <div class="alert" onclick="focusOnAlert(${alert.latitude}, ${alert.longitude})">
+                        <div class="alert-title">
+                            🚨 ${alert.first_name} ${alert.last_name} - Alert #${alert.id}
+                        </div>
+                        <div class="alert-details">
+                            <strong>Student ID:</strong> ${alert.student_id}<br>
+                            <strong>Emergency Contact:</strong> <a href="tel:${alert.emergency_contact}">${alert.emergency_contact}</a><br>
+                            <strong>Alert Time:</strong> ${new Date(alert.alert_time).toLocaleString()}<br>
+                            <strong>Location:</strong> ${parseFloat(alert.latitude).toFixed(6)}, ${parseFloat(alert.longitude).toFixed(6)}<br>
+                            <strong>Status:</strong> <span style="color: #dc3545; font-weight: bold;">${alert.status || 'ACTIVE'}</span>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            
+            // Update map
+            updateMap(alerts);
+            
+            console.log(`📊 Displayed ${alerts.length} alerts from database`);
+        }
+        
+        function updateMap(alerts) {
+            // Clear existing markers
+            markers.forEach(marker => map.removeLayer(marker));
+            markers = [];
+            
+            if (alerts.length === 0) {
+                map.setView([37.4220, -122.0840], 12);
+                return;
+            }
+            
+            // Add markers for each alert
+            alerts.forEach(alert => {
+                const lat = parseFloat(alert.latitude);
+                const lng = parseFloat(alert.longitude);
+                
+                if (!isNaN(lat) && !isNaN(lng)) {
+                    const marker = L.marker([lat, lng]).addTo(map);
+                    
+                    marker.bindPopup(`
+                        <div style="min-width: 220px;">
+                            <strong style="color: #dc3545;">🚨 Emergency Alert #${alert.id}</strong><br><br>
+                            <strong>Student:</strong> ${alert.first_name} ${alert.last_name}<br>
+                            <strong>ID:</strong> ${alert.student_id}<br>
+                            <strong>Contact:</strong> <a href="tel:${alert.emergency_contact}">${alert.emergency_contact}</a><br>
+                            <strong>Time:</strong> ${new Date(alert.alert_time).toLocaleString()}<br>
+                            <strong>Status:</strong> ${alert.status || 'ACTIVE'}
+                        </div>
+                    `);
+                    
+                    markers.push(marker);
+                }
+            });
+            
+            // Fit map to show all markers
+            if (markers.length > 0) {
+                const group = new L.featureGroup(markers);
+                map.fitBounds(group.getBounds().pad(0.1));
+            }
+        }
+        
+        function focusOnAlert(lat, lng) {
+            map.setView([parseFloat(lat), parseFloat(lng)], 16);
+            
+            // Find and open corresponding popup
+            markers.forEach(marker => {
+                const pos = marker.getLatLng();
+                if (Math.abs(pos.lat - parseFloat(lat)) < 0.0001 && 
+                    Math.abs(pos.lng - parseFloat(lng)) < 0.0001) {
+                    marker.openPopup();
+                }
+            });
+        }
+        
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', init);
+        
+        // Enable audio on first interaction
+        document.addEventListener('click', () => {
+            if (audio && audio.state === 'suspended') audio.resume();
+        }, { once: true });
+        
+        // Clean up on page unload
+        window.addEventListener('beforeunload', () => {
+            if (refreshInterval) clearInterval(refreshInterval);
+        });
+    </script>
+</body>
+</html>
