@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'app.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -231,7 +232,7 @@ class _LoginPageState extends State<LoginPage> {
                 textAlign: TextAlign.center,
               ),
               content: Text(
-                'Welcome back, ${responseData['user']['firstName']}!',
+                'Welcome back, ${responseData['user']['first_name']}!',
                 style: const TextStyle(fontSize: 16),
                 textAlign: TextAlign.center,
               ),
@@ -241,8 +242,11 @@ class _LoginPageState extends State<LoginPage> {
                   child: ElevatedButton(
                     onPressed: () {
                       Navigator.of(context).pop(); // Close dialog
-                      Navigator.of(context).pop(); // Go back to main page
-                      // TODO: Navigate to dashboard/home page
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(
+                          builder: (context) => MainAppPage(user: responseData['user']),
+                        ),
+                      );
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
