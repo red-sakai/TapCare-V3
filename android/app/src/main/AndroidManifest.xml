@@ -3,7 +3,7 @@
     <!-- Internet permission for API calls -->
     <uses-permission android:name="android.permission.INTERNET" />
     
-    <!-- Location permissions for emergency alerts -->
+    <!-- Location permissions for emergency alerts (CRITICAL) -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
@@ -11,23 +11,27 @@
     <!-- Phone permissions for emergency calls -->
     <uses-permission android:name="android.permission.CALL_PHONE" />
     
-    <!-- Camera permission for future features -->
+    <!-- Camera and microphone for emergency features -->
     <uses-permission android:name="android.permission.CAMERA" />
-    
-    <!-- Microphone permission -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- Location features required -->
+    <uses-feature
+        android:name="android.hardware.location"
+        android:required="true" />
+    <uses-feature
+        android:name="android.hardware.location.gps"
+        android:required="false" />
 
     <application
         android:label="TapCare"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher"
-        android:enableOnBackInvokedCallback="true">
+        android:icon="@mipmap/ic_launcher">
         
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
-            android:taskAffinity=""
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
