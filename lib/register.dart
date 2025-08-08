@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -338,12 +340,9 @@ class _RegisterPageState extends State<RegisterPage> with TickerProviderStateMix
             ),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               if (_validateCurrentTab()) {
-                // TODO: Handle registration submission
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Registration completed!')),
-                );
+                await _submitRegistration();
               }
             },
             style: ElevatedButton.styleFrom(
@@ -360,37 +359,238 @@ class _RegisterPageState extends State<RegisterPage> with TickerProviderStateMix
 
   bool _validateCurrentTab() {
     final currentIndex = _tabController.index;
+    
+    // Use form validation
+    if (!_formKey.currentState!.validate()) {
+      return false;
+    }
+
     bool isValid = true;
+    String errorMessage = 'Please fill in all required fields';
 
     if (currentIndex == 0) {
       // Validate account information - all required
-      if (_usernameController.text.isEmpty || 
-          _emailController.text.isEmpty || 
-          _passwordController.text.isEmpty) {
+      if (_usernameController.text.trim().isEmpty) {
+        errorMessage = 'Username is required';
+        isValid = false;
+      } else if (_emailController.text.trim().isEmpty) {
+        errorMessage = 'Email is required';
+        isValid = false;
+      } else if (!_isValidEmail(_emailController.text.trim())) {
+        errorMessage = 'Please enter a valid email address';
+        isValid = false;
+      } else if (_passwordController.text.isEmpty) {
+        errorMessage = 'Password is required';
+        isValid = false;
+      } else if (_passwordController.text.length < 6) {
+        errorMessage = 'Password must be at least 6 characters long';
         isValid = false;
       }
     } else if (currentIndex == 1) {
       // Validate personal information - all required
-      if (_firstNameController.text.isEmpty || 
-          _lastNameController.text.isEmpty || 
-          _dateOfBirthController.text.isEmpty || 
-          _studentIdController.text.isEmpty) {
+      if (_firstNameController.text.trim().isEmpty) {
+        errorMessage = 'First name is required';
+        isValid = false;
+      } else if (_lastNameController.text.trim().isEmpty) {
+        errorMessage = 'Last name is required';
+        isValid = false;
+      } else if (_dateOfBirthController.text.isEmpty) {
+        errorMessage = 'Date of birth is required';
+        isValid = false;
+      } else if (_studentIdController.text.trim().isEmpty) {
+        errorMessage = 'Student ID is required';
         isValid = false;
       }
     } else if (currentIndex == 2) {
       // Validate medical information - only emergency contact is required
-      if (_emergencyContactController.text.isEmpty) {
+      if (_emergencyContactController.text.trim().isEmpty) {
+        errorMessage = 'Emergency contact is required';
+        isValid = false;
+      } else if (!_isValidPhoneNumber(_emergencyContactController.text.trim())) {
+        errorMessage = 'Please enter a valid phone number';
         isValid = false;
       }
-      // All other medical fields are optional
     }
 
     if (!isValid) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill in all required fields')),
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
       );
     }
 
     return isValid;
+  }
+
+  bool _isValidEmail(String email) {
+    return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
+  }
+
+  bool _isValidPhoneNumber(String phone) {
+    // Basic phone validation - adjust regex as needed for your requirements
+    return RegExp(r'^\+?[0-9]{10,15}$').hasMatch(phone.replaceAll(RegExp(r'[\s\-\(\)]'), ''));
+  }
+
+  Future<void> _submitRegistration() async {
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(color: Colors.red),
+              SizedBox(width: 20),
+              Text("Creating your account..."),
+            ],
+          ),
+        );
+      },
+    );
+
+    try {
+      const String apiUrl = 'http://206.189.90.136:3000/api/register';
+      
+      final response = await http.post(
+        Uri.parse(apiUrl),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'username': _usernameController.text.trim(),
+          'email': _emailController.text.trim(),
+          'password': _passwordController.text,
+          'firstName': _firstNameController.text.trim(),
+          'lastName': _lastNameController.text.trim(),
+          'dateOfBirth': _dateOfBirthController.text,
+          'gender': _selectedGender,
+          'studentId': _studentIdController.text.trim(),
+          'bloodType': _bloodTypeController.text.trim().isEmpty ? null : _bloodTypeController.text.trim(),
+          'emergencyContact': _emergencyContactController.text.trim(),
+          'medicalConditions': _medicalConditionsController.text.trim().isEmpty ? null : _medicalConditionsController.text.trim(),
+          'allergies': _allergiesController.text.trim().isEmpty ? null : _allergiesController.text.trim(),
+          'currentMedications': _currentMedicationsController.text.trim().isEmpty ? null : _currentMedicationsController.text.trim(),
+          'immunizationHistory': _immunizationHistoryController.text.trim().isEmpty ? null : _immunizationHistoryController.text.trim(),
+          'medicalDevices': _medicalDevicesController.text.trim().isEmpty ? null : _medicalDevicesController.text.trim(),
+        }),
+      );
+
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      if (response.statusCode == 201) {
+        final responseData = jsonDecode(response.body);
+        
+        // Show success dialog
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              icon: const Icon(
+                Icons.check_circle,
+                color: Colors.green,
+                size: 64,
+              ),
+              title: const Text(
+                'Account Created Successfully!',
+                style: TextStyle(
+                  color: Colors.green,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Welcome to TapCare, ${_firstNameController.text}!',
+                    style: const TextStyle(fontSize: 16),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Your account has been created successfully. You can now login with your credentials.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ],
+              ),
+              actions: [
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop(); // Close dialog
+                      Navigator.of(context).pop(); // Go back to main page
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text('Continue to Login'),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      } else {
+        final responseData = jsonDecode(response.body);
+        _showErrorDialog(responseData['message'] ?? 'Registration failed. Please try again.');
+      }
+    } catch (error) {
+      // Close loading dialog if still open
+      Navigator.of(context).pop();
+      _showErrorDialog('Network error. Please check your internet connection and try again.');
+    }
+  }
+
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          icon: const Icon(
+            Icons.error,
+            color: Colors.red,
+            size: 64,
+          ),
+          title: const Text(
+            'Registration Failed',
+            style: TextStyle(
+              color: Colors.red,
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          content: Text(
+            message,
+            textAlign: TextAlign.center,
+          ),
+          actions: [
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                child: const Text('Try Again'),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 }
